@@ -24,6 +24,278 @@
 #/////////////////////////////////////////////////////////////////
 
 
+
+# _______________________ ----
+#----------------------------- NEW IMPLEMENTATION -----------------------------------
+
+
+#/////////////////////////////////////////////////////////////////
+#                  __ STEP 1: SIMILARITY MATRICES               ----
+#/////////////////////////////////////////////////////////////////
+
+# THIS SECTION SHOULD BE SOUND
+#
+# Given a N construct x M elements grid G: this extracts N similarity
+# matrices S, one for each element, and constituted as N construct x
+# (M-1) elements. Therefore, the matrix Sj for the element Ej is obtained
+# by calculating the scoring similarity between Ej and every other element
+# in every construct in G.
+#
+#     s_ijk = r - |g_ij - g_ik |
+#
+# r = max-min scoring
+# g_ij = scoring of the element j - scoring of the element k in the construct i
+#
+step_1 <- function(X, k) {
+  
+  # define number of rows and cols of the given n X m repertory grid
+  rows <- nrow(X)
+  cols <- ncol(X)
+  
+  # S = Similarity matrix
+  S <- X  
+  
+  #  list calculated similarity matrices
+  l <- list()
+  
+  # element e to base similarity matrix on
+  for (e in seq(cols)) {       
+    S[,] <- NA                 # set back S as safety measure
+    # per construct n
+    for (n in seq(rows)) {   
+      # per element m
+      for (m in seq(cols)) {   
+        S[n, m] <- k - abs(X[n, e] - X[n, m])
+      }
+    }
+    # delete e-column and append to list
+    S_e <- S[ , -e]  
+    l <- append(l, list(S_e))  
+  }
+  names(l) <- colnames(X)
+  l
+}
+
+
+#/////////////////////////////////////////////////////////////////
+#        __ STEP 2: INTEGRATION AND DIFFERENTIATION INDEXES   ----
+#/////////////////////////////////////////////////////////////////
+
+step_2 <- function(X, sim) {
+  
+  # create empty integration and differentiation summary tables
+  dif <- X
+  int <- X
+  dif[,] <- 0
+  int[,] <- 0
+  
+  index <- length(sim)
+  
+  # Each similarity matrix S_j in the array is now submitted to principal
+  # component analysis.
+  
+  for (s in seq(index)) {
+    
+    # Selecting an element's similarity matrix in the list
+    
+    m <- as.matrix(sim[[s]])
+    
+    # BOTH THE CHOICES BELOW AND THE CONFIGURATION OF EACH PCA METHOD ARE "SKETCHY"
+    # .. In fact some aspects I don't think make much sense they way they are described in the paper.
+    
+    # (cf. p. 10-11, Gallifa & Botella 2000)
+    # << Each similarity matrix is now submitted to factor analysis. Among all possible algorithms
+    #    that extract the matrix factors, we used the one by Horst (1965, section 12.5, pp. 624–625),
+    #    which is also the one used by Bell (1987) in his computer program for the analysis of repertory
+    #    grids G-Pack (version 3.0) >>
+    #
+    #    please note that both methods mentioned by the authors are eigen value decomposition (PCA).
+    #
+    # << We extract two factors for each similarity matrix s_j , and compute factor loadings
+    #    for each construct c_i . Factor loadings for every c_i indicate the level of similarity
+    #    between the scorings of e_j and the rest of elements in G (standard rep. grid) considered
+    #    as a whole. Positive factor loadings indicate that the scoring of e_j in c_i is similar
+    #    to the scoring of all the other elements in c_i . In this case, the use of c_i when rating
+    #    e_j is very similar to its use when rating all the other elements in G. (Note, however,
+    #    that factor analyses do not indicate which pole of c_i is applied to e_j ; this information
+    #    needs to be obtained from the original ratings in G, as we will discuss later in more detail).
+    #    Negative factor loadings indicate that the scoring of e_j in c_i is dissimilar to the scoring
+    #    of all the other elements in c_i>>
+    #
+    
+    if (PCA.m == "singular" | is.na(PCA.m)) {
+      
+      #/////////////////////////////////////////////////////////////////
+      #       METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp()
+      #/////////////////////////////////////////////////////////////////
+      
+      # EXPERIMENTAL: Gallifa says that they factor analysed the raw similarity matrices
+      # and not the respective correlation matrices. So I have tried use prcomp() with the raw
+      # similarity matrices
+      
+      # from "Principal Component Analysis in r:  an examination of the different functions and
+      # methods to perform PCA. Gregory B. Anderson:
+      #
+      # << The function prcomp() performs a principal component analysis using singular value decomposition
+      # of the data matrix.  Unlike the svd function, the data matrix does not need to be centered or
+      # scaled prior to analysis because these options can be specified as arguments in the prcomp
+      # command.  The arguments of the function include: formula (e.g., ~X1+X2), data(optional data
+      # rame containing the variables), subset (an optional vector used to select particular rows
+      # of the data matrix), na.action (a function to indicate how missing values should be treated),
+      # x (a matrix or dataframe to be used), retx(a logical statement to determine if the rotated
+      # variables should be returned), center (a logical statement to indicate that the data should
+      # be centered at zero), scale (a logical statement to indicate  that the data should be
+      # scaled [default=FALSE]), tol(an argument to indicate that the magnitude below the provided
+      # value for components should be omitted), and newdata (an optional dataset to predict into).>>
+      
+      #m <- normalize(m,normalize = 1)  # I don't think this is needed
+      
+      # transpose similarity so that it is submitted to PCA using constructs as variables
+      m <- t(m)
+      m <- cor(m)
+      # center: (the column means of the original data used to center each variable)
+      # scale:  (the original variance of each column used to scale each variable)
+      
+      res <- prcomp(m, center = T, scale. = F)
+      
+      # calculate eigenvalues from sigma values
+      evalues <- res$sdev * res$sdev
+      # pull eigenvectors
+      evectors <- as.matrix(res$rotation)
+      #
+      # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
+      # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
+      #
+      # --> Which one doe we use? <---
+      #
+      # actual loadings:
+      #loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
+      #
+      # or eigenvectors?
+      loadings <- evectors
+      #
+      #
+      #/////////////////////////////////////////////////////////////////
+      
+    } else if (PCA.m == "spectral") {
+      #/////////////////////////////////////////////////////////////////
+      #    METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION
+      #/////////////////////////////////////////////////////////////////
+      
+      #
+      # from "Principal Component Analysis in r:  an examination of the different functions and
+      # methods to perform PCA. Gregory B. Anderson:
+      #
+      # << eigen() computes eigenvalues and eigenvectors using spectral decomposition of real or
+      # complex matrices.  The arguments for the function are as follows:
+      #    - X (a matrix to be used
+      #        [for PCA we specify either the correlation matrix or the covariance matrix])
+      #    - symmetric (a logical argument; if TRUE the matrix is assumed to be symmetric
+      #        [if not specified, the matrix will be inspected for symmetry])
+      #    - only.values (a logical argument; if TRUE only the eigenvalues are computed and returned). >>
+      
+      # We work on the similarity matrix:
+      
+      # we transpose similarity so that it is analysed using constructs as variables                                 #
+      m <- t(m)
+      #
+      # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
+      r <- cor(m)
+      #
+      #
+      # calculate eigenvalues.
+      evalues <- eigen(r)$values
+      
+      # calculate eigenvectors.
+      evectors <-
+        eigen(r)$vectors
+      #
+      #
+      # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
+      # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
+      #
+      # --> Which one doe we use? <--
+      #
+      # actual loadings:
+      # loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
+      #
+      # or eigenvectors ?
+      loadings <- evectors
+      #
+      #/////////////////////////////////////////////////////////////////
+      
+      
+    } else if (PCA.m == "EFA") {
+      #/////////////////////////////////////////////////////////////////
+      #       METHOD 3 USING FACTOR ANALYSIS  (discouraged)
+      #/////////////////////////////////////////////////////////////////
+      
+      #
+      # I do not think this is the kind of analysis that gallifa and botella meant this method should
+      # be removed
+      # library("psych")
+      # we transpose similarity so that it is analysed using constructs as variables                                 #
+      m <- t(m)
+      #
+      res <- psych::fa(r = cor(m), nfactors = 2)
+      loadings <- res$loadings
+      #
+      #/////////////////////////////////////////////////////////////////
+      
+      
+    } else {
+      stop(
+        "The PCA function selected is not recognised. Please use 'singular' for singular value
+          decomposition or 'spectral' for spectral value decomposition. quitting.."
+      )
+    }
+    
+  }
+}
+
+
+
+SQM2 <-  function (x, min = NULL, max = NULL, trim = 4, PCA.m = "singular") {
+  
+  # data prep
+  X <- getRatingLayer(x) #, trim = trim)
+  
+  sc <- getScale(x)
+  
+  if (is.null(min)) {
+    min <- sc[1]
+    cat("\nMinimum score not given. Estimated min based on grid scoring =",
+        min)
+  }
+  
+  if (is.null(max)) {
+    max <- sc[2]
+    cat("\nMaximun score not given. Estimated Max based on grid scoring =",
+        max)
+  }
+  
+  # calculate k as being the similarity parameter
+  k <- unname(max - min)
+  
+  # number of rows and cols of the given n X m repertory grid
+  rows <- nrow(x)
+  cols <- ncol(x)
+
+  # STEP I: SIMILARITY MATRICES
+  sim <- step_1(X, k)
+  
+  # STEP 2: INTEGRATION AND DIFFERENTIATION INDEXES
+  
+}
+
+
+
+
+# _______________________ ----
+#------------------------------- DIEGO'S CODE --------------------------------------
+
+
+
 #' Structural Quadrant Method (SQM) 
 #'
 #' @param x               \code{repgrid} object.
@@ -129,7 +401,6 @@ SQM <-  function (x, min = NULL, max = NULL, trim = 4, PCA.m = "singular") {
       
       m <- as.matrix(sim[[s]])
       
-      
       # BOTH THE CHOICES BELOW AND THE CONFIGURATION OF EACH PCA METHOD ARE "SKETCHY"
       # .. In fact some aspects I don't think make much sense they way they are described in the paper.
       
@@ -154,6 +425,7 @@ SQM <-  function (x, min = NULL, max = NULL, trim = 4, PCA.m = "singular") {
       #
       
       if (PCA.m == "singular" | is.na(PCA.m)) {
+        
         #/////////////////////////////////////////////////////////////////
         #       METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp()
         #/////////////////////////////////////////////////////////////////
@@ -185,9 +457,8 @@ SQM <-  function (x, min = NULL, max = NULL, trim = 4, PCA.m = "singular") {
         # center: (the column means of the original data used to center each variable)
         # scale:  (the original variance of each column used to scale each variable)
         
-        res <-
-          prcomp(m, center = T, scale. = F)
-        #
+        res <- prcomp(m, center = T, scale. = F)
+        
         # calculate eigenvalues from sigma values
         evalues <- res$sdev * res$sdev
         # pull eigenvectors

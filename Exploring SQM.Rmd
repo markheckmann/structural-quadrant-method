@@ -1,0 +1,88 @@
+---
+title: "Exploring SQM"
+author: "Mark Heckmann"
+date: "31 5 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Input
+
+Using the grid from p. 14:
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+library(OpenRepGrid)
+library(tidyverse)
+
+x <- importExcel("gallifa-botella-grid.xlsx")
+bertin(x)
+```
+
+
+## STEP 2: INTEGRATION AND DIFFERENTIATION INDEXES
+
+```{r echo=FALSE}
+
+# understanding Step III:
+
+# Similarity matrix for element "Freud"
+# elements
+# constructs                Adler Jung Rogers Piaget Vygotsky Skinner Pavlov
+# Psychoanal - Non-psycho     4    4      1      0        0       0      0
+# Psychoanal - Constructi     3    4      1      1        2       2      2
+# Behavioral - Psychoanal     4    4      2      2        2       0      1
+# Developmen - Behavioral     3    3      3      4        4       1      1
+# Psychoanal - Personalit     4    4      1      1        2       2      2
+# Behavioral - Psycholing     4    4      3      3        2       2      2
+# Behavioral - Developmen     3    3      4      4        4       1      1
+
+# create similarity matrix as grid
+similarity_grid <- function(x, e = 1)
+{
+  k <- getScale(x) %>% diff %>% unname
+
+  s <- k - abs(getRatingLayer(x) - getRatingLayer(x[, rep(e, ncol(x))]))
+  s_e <- x[, -e]
+  s_e[, ] <- 1
+  s_e <- setScale(s_e, min = 0, max = 4)
+  s_e[, ] <- s[, -e]
+  
+  leftpoles(s_e) <- paste(" —", leftpoles(x),  "/", rightpoles(x))
+  rightpoles(s_e) <- paste(" +", rightpoles(x), "/", leftpoles(x))
+  s_e
+}
+```
+
+The similarity matrix from step I in the paper is the following for element 1 = Freud.
+
+```{r echo=FALSE}
+e <- 1
+s_e <- similarity_grid(x, e = e)
+bertin(s_e)
+```
+
+Visualizing the similarities as a biplot using midpooint centering. We can read off, for example, that the similarity of "Adler" and "Jung" to the base element "Freud" is high on the psychoanalytic / behavior construct (indicated by the "+"). Conversely, we see that the similarity between "Pavlov" / "Skinner" and "Freud" is low on this construct. **However, it remains unclear how construct loadings could indicate this in any way for all elements.**
+
+```{r echo=FALSE, fig.width = 8}
+biplot2d(s_e, mai = c(.2, 2.5, .2, 2.5), center = 4, c.point.cex = 0)
+title(paste("Similarity to", elements(x)[e]))
+
+# add construct vectors for testing purposes
+r <- getRatingLayer(s_e)
+d <- svd(r - getScaleMidpoint(s_e)) # 4 = midpoint centering
+points(d$u[ , 1:2] * 3, pch=4) 
+
+```
+
+```{r echo = FALSE}
+round(d$u %*% diag(d$d) %*% t(d$v))
+```
+
+
+
+
+
