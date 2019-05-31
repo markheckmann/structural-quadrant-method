@@ -24,33 +24,27 @@
 #/////////////////////////////////////////////////////////////////
 
 
-# internal workhorse for SQM
-#
-# @param x               \code{repgrid} object.
-# @param min             Minimum score should be define a priori (e.g for a range 1-7
-#                        min = 1). If not given the min is estimated on the basis of
-#                        the grid scoring (not recommended).
-# @param max             Maximum score should be define a priori (e.g for a range 1-7
-#                        max = 7). If not given the max is estimated on the basis of
-#                        the grid scoring (not recommended).
-# @param PCA.f           With \code{PCA.f="spectral"} SQM will call the function
-#                        eigen() for spectral value decomposition. With \code{PCA.f="singular"}
-#                        SQM will call the function prcomp() for singular value decomposition
-# @param trim            The number of characters a construct (element) is trimmed to (default is
-# @author                Diego Vitali
-# @export
-# @keywords internal
-# @return                A list with four elements containing different steps of the
-#                        calculation.
-#
-#
-
-SQM <-
-  function (x,
-            min = NULL ,
-            max = NULL,
-            trim = 4,
-            PCA.m = "singular") {
+#' Structural Quadrant Method (SQM) 
+#'
+#' @param x               \code{repgrid} object.
+#' @param min             Minimum score should be define a priori (e.g for a range 1-7
+#'                        min = 1). If not given the min is estimated on the basis of
+#'                        the grid scoring (not recommended).
+#' @param max             Maximum score should be define a priori (e.g for a range 1-7
+#'                        max = 7). If not given the max is estimated on the basis of
+#'                        the grid scoring (not recommended).
+#' @param PCA.f           With \code{PCA.f="spectral"} SQM will call the function
+#'                        eigen() for spectral value decomposition. With \code{PCA.f="singular"}
+#'                        SQM will call the function prcomp() for singular value decomposition
+#' @param trim            The number of characters a construct (element) is trimmed to (default is
+#' @author                Diego Vitali
+#' @export
+#' @keywords internal
+#' @return                A list with four elements containing different steps of the
+#'                        calculation
+#'                        
+SQM <-  function (x, min = NULL, max = NULL, trim = 4, PCA.m = "singular") {
+  
     X <- getRatingLayer(x) #, trim = trim)
     
     sc <- getScale(x)
@@ -60,6 +54,7 @@ SQM <-
       cat("\nMinimum score not given. Estimated min based on grid scoring =",
           min)
     }
+    
     if (is.null(max)) {
       max <- sc[2]
       cat("\nMaximun score not given. Estimated Max based on grid scoring =",
@@ -201,7 +196,7 @@ SQM <-
         # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
         # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
         #
-        # -------> Which one doe we use? <----------
+        # --> Which one doe we use? <---
         #
         # actual loadings:
         #loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
@@ -249,7 +244,7 @@ SQM <-
         # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
         # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
         #
-        # -------> Which one doe we use? <----------
+        # --> Which one doe we use? <--
         #
         # actual loadings:
         # loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
@@ -286,7 +281,7 @@ SQM <-
       }
       
       #/////////////////////////////////////////////////////////////////
-      # WRAPPING UP RESULTS AND BUILDING TABLES  ----
+      #               WRAPPING UP RESULTS AND BUILDING TABLES  ----
       #/////////////////////////////////////////////////////////////////
       
       
@@ -317,12 +312,14 @@ SQM <-
     }
     
     
-    #########################  This part is rather Sketchy and curious ################################
+    #/////////////////////////////////////////////////////////////////
+    #
+    # TODO: This part is rather Sketchy and curious
     # from Botella & Gallifa ( 2000): "Factor analyses do not indicate which pole of  #
     # ci is applied to ej [..] We consider that the same pole of ci is being applied  #
     # to ej and ek in G when |g ij – g ik | <= 1                                      #
     #                                                                                 #
-    # (.. this I still need to write.... abs(X[n,e]-X[n,m])<=1) ...
+    # (.. this I still need to write.... abs(X[n,e] - X[n,m]) <= 1) ...
     #
     # However .. I cannot really make sense of this passage... the signs of the loading
     # on components extracted only indicate their orthogonality relatively to the matrices
@@ -332,7 +329,7 @@ SQM <-
     
     
     #/////////////////////////////////////////////////////////////////
-    #                          PRINTING OFF      ----
+    #                          PRINTING OFF                       ----
     #/////////////////////////////////////////////////////////////////
     
     #
@@ -348,17 +345,16 @@ SQM <-
     indexInt <- Iel / cols * Ico / rows
     indexDiff <- Del / cols * Dco / rows
     
-    res <-
-      list(
-        "Differentiation index" = indexDiff,
-        "Differentiation summary" = dif,
-        "Integration index" = indexInt,
-        "Integration summary" = int
-      )
+    res <- list(
+      "Differentiation index" = indexDiff,
+      "Differentiation summary" = dif,
+      "Integration index" = indexInt,
+      "Integration summary" = int
+    )
     
     #/////////////////////////////////////////////////////////////////
-    
-    # Discussion
+    #
+    #                        DISCUSSION                           ----
     #
     # the summaries report all the respective diff and int weights
     # but I am not sure they are right.. specially because the Authors
@@ -372,6 +368,9 @@ SQM <-
     #
     #/////////////////////////////////////////////////////////////////
     
-    
     return(res)
-  }
+}
+
+
+
+
